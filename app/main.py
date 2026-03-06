@@ -1,30 +1,34 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
 
 from app.api import router as api_router
-
 from app.repos.memory import InMemoryRepository
 from app.kernel import create_kernel
 from app.agent import AgentService
+
+from app.agents import quotation_agent, extractor_agent, validation_agent, generator_agent
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="bom generator")
 
-    # ---------- Infrastructure Wiring ----------
     repo = InMemoryRepository()
     kernel = create_kernel(repo)
-    agent = AgentService(kernel)
 
-    # ---------- Dependency Injection ----------
+    agent = AgentService(
+        kernel=kernel,
+        quotation_agent=quotation_agent,
+        extractor_agent=extractor_agent,
+        validation_agent=validation_agent,
+        generator_agent=generator_agent,
+        service_id="default",
+    )
+
     def get_agent_service() -> AgentService:
         return agent
 
-    # attach dependency to app state (cleaner than globals)
     app.state.get_agent_service = get_agent_service
 
-    # ---------- Middleware ----------
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],
@@ -33,10 +37,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ---------- Routers ----------
     app.include_router(api_router)
 
-    # ---------- Health ----------
     @app.get("/health")
     async def health():
         return {"ok": True}
@@ -44,7 +46,8 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def base():
         return {"hello": "world"}
-    
+
     return app
+
 
 app = create_app()
